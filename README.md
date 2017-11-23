@@ -1,6 +1,14 @@
 # Project 3: LCD Game
 ## Introduction
 
+Jaime Gonzales Modification notes:
+-add SlicedCircleCheck into circledemo.c to try to make a sliced circle
+like the given sliced rectangle in shapedemo3.c (currently only makes the
+circle into a line instead of a sliced shaped)
+
+
+ReadMe from the time project was given:
+
 Continuing your effort to help ACME Solutions provide Christmas toys, 
 your task is now to develop a game for the LCD screen.  You should 
 utilize the knowledge you havegained working with the buttons and 

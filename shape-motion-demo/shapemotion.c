@@ -17,7 +17,9 @@
 #define GREEN_LED BIT6
 
 
-AbRect rect10 = {abRectGetBounds, abRectCheck, {10,10}}; /**< 10x10 rectangle */
+AbRect rect10 = {abRectGetBounds, abRectCheck, {10,10}}; /**< 10x10 rectangle 
+*/
+//AbRect rect20 = {abRectGetBounds, abRectCheck, {20,20}};
 AbRArrow rightArrow = {abRArrowGetBounds, abRArrowCheck, 30};
 
 AbRectOutline fieldOutline = {	/* playing field */
@@ -29,7 +31,7 @@ Layer layer4 = {
   (AbShape *)&rightArrow,
   {(screenWidth/2)+10, (screenHeight/2)+5}, /**< bit below & right of center */
   {0,0}, {0,0},				    /* last & next pos */
-  COLOR_PINK,
+  COLOR_RED,
   0
 };
   
@@ -41,8 +43,13 @@ Layer layer3 = {		/**< Layer with an orange circle */
   COLOR_VIOLET,
   &layer4,
 };
-
-
+Layer layerNew = {
+  (AbShape *)&circle10,
+  {(screenWidth/2)+10, (screenHeight/2)+5},
+  {0,0},{0,0},
+  COLOR_RED,
+  &layer3,
+};
 Layer fieldLayer = {		/* playing field as a layer */
   (AbShape *) &fieldOutline,
   {screenWidth/2, screenHeight/2},/**< center */
@@ -55,7 +62,7 @@ Layer layer1 = {		/**< Layer with a red square */
   (AbShape *)&rect10,
   {screenWidth/2, screenHeight/2}, /**< center */
   {0,0}, {0,0},				    /* last & next pos */
-  COLOR_RED,
+  COLOR_BLACK,
   &fieldLayer,
 };
 
@@ -148,7 +155,7 @@ void mlAdvance(MovLayer *ml, Region *fence)
 }
 
 
-u_int bgColor = COLOR_BLUE;     /**< The background color */
+u_int bgColor = COLOR_PINK;     /**< The background color */
 int redrawScreen = 1;           /**< Boolean for whether screen needs to be redrawn */
 
 Region fieldFence;		/**< fence around playing field  */
@@ -173,7 +180,7 @@ void main()
   layerDraw(&layer0);
 
 
-  layerGetBounds(&fieldLayer, &fieldFence);
+  layerGetBounds(&fieldLayer, &fieldFence); //region around field (where shapes bump
 
 
   enableWDTInterrupts();      /**< enable periodic interrupt */
