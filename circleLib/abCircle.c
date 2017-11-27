@@ -1,5 +1,6 @@
 #include "shape.h"
 #include "_abCircle.h"
+#include "chordVec.h"
 
 // true if pixel is in circle centered at centerPos
 int abCircleCheck(const AbCircle *circle, const Vec2 *centerPos, const Vec2 *pixel)
@@ -20,7 +21,10 @@ int abSlicedCircleCheck(const AbCircle *circle, const Vec2 *centerPos, const Vec
   Vec2 relPos;
   vec2Sub(&relPos, pixel, centerPos);
   vect2Abs(&relPos);
-  return (relPos.axes[0] <= radius && circle->chords[relPos.axes[0]] >= relPos.axes[1]);
+  if(relPos.axes[0] >= 0 && relPos.axes[0]/2 <= relPos.axes[1])
+    return 0;
+  else
+    return abCircleCheck(circle,centerPos,pixel);
 }
 */
 
