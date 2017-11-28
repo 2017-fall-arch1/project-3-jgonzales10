@@ -7,7 +7,7 @@
 AbRect rect10 = {abRectGetBounds, abRectCheck, {10,10}};; /**< 10x10 rectangle */
 
 int
-abSlicedCircleCheck(const AbCircle *circle, const Vec2 *centerPos, const Vec2 *pixel)
+abSlicedCircleCheck(const AbCircle *circle, const Vec2 *centerPos, const Vec2 *pixel, int mouthSize)
 {
   u_char radius = circle->radius;
   int axis;
@@ -25,7 +25,7 @@ abSlicedCircleCheck(const AbCircle *circle, const Vec2 *centerPos, const Vec2 *p
 
 u_int bgColor = COLOR_BLUE;
 
-AbCircle circleC = {abCircleGetBounds, abSlicedCircleCheck, chordVec20, 20};
+AbCircle circleC = {abCircleGetBounds, abSlicedCircleCheck, chordVec20,20};
 
 Layer layer1 = {		/**< Layer with a red square */
   (AbShape *)&rect10,

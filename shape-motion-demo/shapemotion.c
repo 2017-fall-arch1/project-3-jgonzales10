@@ -19,32 +19,31 @@
 
 int
 abSlicedCircleCheck(const AbCircle *circle, const Vec2 *centerPos, const Vec2 *pixel)
-{
+  {
   u_char radius = circle->radius;
   int axis;
   Vec2 relPos;
   vec2Sub(&relPos, pixel, centerPos);
-  if(relPos.axes[0] >= 0 && relPos.axes[0] <= relPos.axes[1])
+  if(relPos.axes[0] >= 0 && relPos.axes[0]/2 <= relPos.axes[1])
     return 0;
   else
     return abCircleCheck(circle, centerPos, pixel);
 }
-
-AbCircle circleC = {abCircleGetBounds, abSlicedCircleCheck, chordVec50, 50};
-
-AbRect rect10 = {abRectGetBounds, abRectCheck, {10,10}}; /**< 10x10 rectangle 
+AbCircle circleC = {abCircleGetBounds, abSlicedCircleCheck, chordVec20, 20};
+AbCircle circleBad = {abCircleGetBounds, abSlicedCircleCheck, chordVec10,10};
+AbRect pongRect = {abRectGetBounds, abRectCheck, {15,2}}; /**< 10x10 rectangle 
 */
 //AbRect rect20 = {abRectGetBounds, abRectCheck, {20,20}};
 AbRArrow rightArrow = {abRArrowGetBounds, abRArrowCheck, 30};
 
 AbRectOutline fieldOutline = {	/* playing field */
   abRectOutlineGetBounds, abRectOutlineCheck,   
-  {screenWidth/2 - 10, screenHeight/2 - 10}
+  {(screenWidth/2)-6, (screenHeight/2)-6}
 };
 
 Layer layer4 = {
-  (AbShape *)&rightArrow,
-  {(screenWidth/2)+10, (screenHeight/2)+5}, /**< bit below & right of center */
+  (AbShape *)&pongRect,
+  {(screenWidth/2), (screenHeight-8)}, /**< bit below & right of center */
   {0,0}, {0,0},				    /* last & next pos */
   COLOR_RED,
   0
@@ -52,10 +51,10 @@ Layer layer4 = {
   
 
 Layer layer3 = {		/**< Layer with an orange circle */
-  (AbShape *)&circle8,
+  (AbShape *)&circleBad,
   {(screenWidth/2)+10, (screenHeight/2)+5}, /**< bit below & right of center */
   {0,0}, {0,0},				    /* last & next pos */
-  COLOR_VIOLET,
+  COLOR_RED,
   &layer4,
 };
 Layer layerNew = {
@@ -69,21 +68,21 @@ Layer fieldLayer = {		/* playing field as a layer */
   (AbShape *) &fieldOutline,
   {screenWidth/2, screenHeight/2},/**< center */
   {0,0}, {0,0},				    /* last & next pos */
-  COLOR_BLACK,
+  COLOR_BLUE,
   &layer3
 };
 
 Layer layer1 = {		/**< Layer with a red square */
-  (AbShape *)&rect10,
+  (AbShape *)&circle5,
   {screenWidth/2, screenHeight/2}, /**< center */
   {0,0}, {0,0},				    /* last & next pos */
-  COLOR_BLACK,
+  COLOR_YELLOW,
   &fieldLayer,
 };
 
-Layer layer0 = {		/**< Layer with an orange circle */
+Layer layer0 = {		/*< Layer with an orange circle */
   (AbShape *)&circleC,
-  {(Screenwidth/2)+10, (screenHeight/2)+5}, /**< bit below & right of center */
+  {(screenWidth/2)+10, (screenHeight/2)+5}, /*< bit below & right of center */
   {0,0}, {0,0},				    /* last & next pos */
   COLOR_ORANGE,
   &layer1,
@@ -100,9 +99,10 @@ typedef struct MovLayer_s {
 } MovLayer;
 
 /* initial value of {0,0} will be overwritten */
-MovLayer ml3 = { &layer3, {1,1}, 0 }; /**< not all layers move */
-MovLayer ml1 = { &layer1, {1,2}, &ml3 }; 
-MovLayer ml0 = { &layer0, {2,1}, &ml1 }; 
+MovLayer ml3 = { &layer4, {4,0}, 0}; /**< not all layers move */
+MovLayer ml2 = { &layer1, {3,3}, &ml3};
+MovLayer ml1 = { &layer0, {1,2}, &ml2 }; 
+MovLayer ml0 = { &layer3, {2,1}, &ml1 }; 
 
 void movLayerDraw(MovLayer *movLayers, Layer *layers)
 {
@@ -125,7 +125,7 @@ void movLayerDraw(MovLayer *movLayers, Layer *layers)
 		bounds.botRight.axes[0], bounds.botRight.axes[1]);
     for (row = bounds.topLeft.axes[1]; row <= bounds.botRight.axes[1]; row++) {
       for (col = bounds.topLeft.axes[0]; col <= bounds.botRight.axes[0]; col++) {
-	Vec2 pixelPos = {col, row};
+	Vec2 pixelPos = {col,row};
 	u_int color = bgColor;
 	Layer *probeLayer;
 	for (probeLayer = layers; probeLayer; 
@@ -160,9 +160,9 @@ void mlAdvance(MovLayer *ml, Region *fence)
     abShapeGetBounds(ml->layer->abShape, &newPos, &shapeBoundary);
     for (axis = 0; axis < 2; axis ++) {
       if ((shapeBoundary.topLeft.axes[axis] < fence->topLeft.axes[axis]) ||
-	  (shapeBoundary.botRight.axes[axis] > fence->botRight.axes[axis]) ) {
+	  (shapeBoundary.botRight.axes[axis] > fence->botRight.axes[axis])) {
 	int velocity = ml->velocity.axes[axis] = -ml->velocity.axes[axis];
-	newPos.axes[axis] += (2*velocity);
+	newPos.axes[axis] += (velocity);
       }	/**< if outside of fence */
     } /**< for axis */
     ml->layer->posNext = newPos;
@@ -170,7 +170,7 @@ void mlAdvance(MovLayer *ml, Region *fence)
 }
 
 
-u_int bgColor = COLOR_PINK;     /**< The background color */
+u_int bgColor = COLOR_BLACK;     /**< The background color */
 int redrawScreen = 1;           /**< Boolean for whether screen needs to be redrawn */
 
 Region fieldFence;		/**< fence around playing field  */
@@ -195,17 +195,16 @@ void main()
   layerDraw(&layer0);
 
 
-  layerGetBounds(&fieldLayer, &fieldFence); //region around field (where shapes bump
-
-
+  layerGetBounds(&fieldLayer, &fieldFence); /*region around field (where shapes bump */
+  
   enableWDTInterrupts();      /**< enable periodic interrupt */
   or_sr(0x8);	              /**< GIE (enable interrupts) */
 
 
   for(;;) { 
     while (!redrawScreen) { /**< Pause CPU if screen doesn't need updating */
-      P1OUT &= ~GREEN_LED;    /**< Green led off witHo CPU */
-      or_sr(0x10);	      /**< CPU OFF */
+    P1OUT &= ~GREEN_LED;    /**< Green led off witHo CPU */
+    or_sr(0x10);	      /**< CPU OFF */
     }
     P1OUT |= GREEN_LED;       /**< Green led on when CPU on */
     redrawScreen = 0;
@@ -219,7 +218,7 @@ void wdt_c_handler()
   static short count = 0;
   P1OUT |= GREEN_LED;		      /**< Green LED on when cpu on */
   count ++;
-  if (count == 15) {
+  if (count == 20) {
     mlAdvance(&ml0, &fieldFence);
     if (p2sw_read())
       redrawScreen = 1;
