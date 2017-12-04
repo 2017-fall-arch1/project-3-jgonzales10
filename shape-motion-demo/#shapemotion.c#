@@ -18,6 +18,7 @@
 #define GREEN_LED BIT6
 static unsigned int points = 0;
 char snum[5];
+static unsigned int count = 0;
 
 int
 abSlicedCircleCheck(const AbCircle *circle, const Vec2 *centerPos, const Vec2 *pixel)
@@ -43,7 +44,7 @@ AbRectOutline fieldOutline = {	/* playing field */
   {(screenWidth/2)-6, (screenHeight/2)-10}
 };
 
-Layer layer4 = {
+Layer paddleLayer = {
   (AbShape *)&pongRect,
   {(screenWidth/2), (screenHeight-14)}, /**< bit below & right of center */
   {0,0}, {0,0},				    /* last & next pos */
@@ -57,7 +58,7 @@ Layer layer3 = {		/**< Layer with an orange circle */
   {(screenWidth/2)+10, (screenHeight/2)+5}, /**< bit below & right of center */
   {0,0}, {0,0},				    /* last & next pos */
   COLOR_RED,
-  &layer4,
+  &paddleLayer,
 };
 
 Layer fieldLayer = {		/* playing field as a layer */
@@ -95,8 +96,10 @@ typedef struct MovLayer_s {
 } MovLayer;
 
 /* initial value of {0,0} will be overwritten */
-MovLayer ml3 = { &layer4, {4,0}, 0}; /**< not all layers move */
-MovLayer ml2 = { &layer1, {3,3}, &ml3};
+//MovLayer ml3 = { &layer4, {4,0}, 0}; /**< not all layers move */
+//MovLayer ml2 = { &layer1, {3,3}, &ml3};
+MovLayer ml3 = { &paddleLayer, {4,0}, 0};
+MovLayer ml2 = { &layer1, {3,3}, 0};
 MovLayer ml1 = { &layer0, {1,2}, &ml2 }; 
 MovLayer ml0 = { &layer3, {2,1}, &ml1 }; 
 
@@ -165,7 +168,36 @@ void mlAdvance(MovLayer *ml, Region *fence)
     ml->layer->posNext = newPos;
   } /**< for ml */
 }
-
+void paddleAdvance(MovLayer *ml, Region *fence, int cursor)
+{
+  Vec2 newPos;
+  u_char axis;
+  Region shapeBoundary;
+  for (; ml; ml = ml->next) {
+    vec2Add(&newPos, &ml->layer->posNext, &ml->velocity);
+    abShapeGetBounds(ml->layer->abShape, &newPos, &shapeBoundary);
+    for (axis = 0; axis < 2; axis ++) {
+      if ((shapeBoundary.topLeft.axes[0] < fence->topLeft.axes[0])){
+	int velocity = 10;
+	  newPos.axes[0] += (velocity);
+	}
+      if(shapeBoundary.botRight.axes[0] > fence->botRight.axes[0]) {
+	int velocity = -10;
+	newPos.axes[0] += (velocity);
+      }
+      if(cursor == 0){
+	int velocity = -5;//ml->velocity.axes[axis] = -ml->velocity.axes[axis];
+	newPos.axes[0] += (velocity);
+      }
+      if(cursor == 1){
+	int velocity = ml->velocity.axes[axis];
+	newPos.axes[axis] += (velocity);
+      }
+      /**< if outside of fence */
+    } /**< for axis */
+   ml->layer->posNext = newPos;
+  } /**< for ml */
+}
 
 u_int bgColor = COLOR_BLACK;     /**< The background color */
 int redrawScreen = 1;           /**< Boolean for whether screen needs to be redrawn */
@@ -195,24 +227,45 @@ void main()
   
   enableWDTInterrupts();      /**< enable periodic interrupt */
   or_sr(0x8);	              /**< GIE (enable interrupts) */
-  
+
+  //drawString5x7((screenHeight/2)-10,0,"Feed", COLOR_YELLOW, COLOR_BLACK);
+  //drawString5x7((screenHeight/2)-5,0, "REDDY", COLOR_RED, COLOR_BLACK);
   for(;;){
+    if(count < 30){
+      drawString5x7((screenHeight/2)-4,0, "      ", COLOR_BLACK, COLOR_BLACK);
+      drawString5x7((screenHeight/2)-10,0,"FEED", COLOR_YELLOW, COLOR_BLACK);
+      count++;
+    }
+    if(count >= 30 && count < 50){
+      drawString5x7((screenHeight/2)-4,0, "REDDY", COLOR_RED, COLOR_BLACK);
+      count ++;
+    }
+    if(count == 50){
+      count = 0;
+    }
+    char* pnum = itoa(points,snum,10);
     drawString5x7(0,0, "Score:", COLOR_GREEN, COLOR_BLACK); //score implem.
-  drawString5x7((screenHeight/4),0, itoa(points,snum, 10),
-		COLOR_GREEN, COLOR_BLACK);
-  u_int switches = p2sw_read(), i;
-  char str[5];
-  for(i = 0; i < 4; i++){
-    str[i] = (switches & (1<<i)) ? '-' : '0'+i;
-  }
-  str[4] = 0;
-  drawString5x7((screenHeight/2),0,str,COLOR_BLUE,COLOR_BLACK);
-  
-  //for(;;) { 
-    while (!redrawScreen) { /**< Pause CPU if screen doesn't need updating */
-    		  
-    P1OUT &= ~GREEN_LED;    /**< Green led off witHo CPU */
-    or_sr(0x10);	      /**< CPU OFF */
+    drawString5x7((screenHeight/4),0, pnum,
+    		  COLOR_GREEN, COLOR_BLACK);
+
+    u_int switches = p2sw_read(), i;
+    char str[5];
+    for(i = 0; i < 4; i++){
+      str[i] = (switches & (1<<i)) ? '-' : '0'+i;
+    }
+    str[4] = 0;
+    drawString5x7(0,screenHeight-8,str,COLOR_BLUE,COLOR_BLACK);
+    if(p2sw_read() == 11){
+      paddleAdvance(&ml3, &fieldFence,1);
+      movLayerDraw(&ml3, &paddleLayer);
+    }
+    if(p2sw_read() == 13){
+      paddleAdvance(&ml3, &fieldFence,0);
+      movLayerDraw(&ml3, &paddleLayer);
+    }
+ 
+    while (!redrawScreen) { /**< Pause CPU if screen doesn't need updating */        P1OUT &= ~GREEN_LED;    /**< Green led off witHo CPU */
+      or_sr(0x10);	      /**< CPU OFF */
     }
     P1OUT |= GREEN_LED;       /**< Green led on when CPU on */
     redrawScreen = 0;
