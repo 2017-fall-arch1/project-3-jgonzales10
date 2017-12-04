@@ -2,6 +2,14 @@
 ## Introduction
 
 Jaime Gonzales Modification notes:
+This game is meant to be similar to pong except that you gain points by feeding
+the red "FREDDY" character whilst the yellow character decreases
+your points if it touches the ball.
+12/3/2017
+-implemented sliced circles into the shape-motion-demo
+-implemented a score system that updates on the top
+-implemented a title for the game
+-added switch functions to make pong paddle move left and right
 -add SlicedCircleCheck into circledemo.c to try to make a sliced circle
 like the given sliced rectangle in shapedemo3.c (currently only makes the
 circle into a line instead of a sliced shaped)
