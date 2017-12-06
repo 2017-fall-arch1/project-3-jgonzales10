@@ -5,7 +5,8 @@
  *  While the CPU is running the green LED is on, and
  *  when the screen does not need to be redrawn the CPU
  *  is turned off along with the green LED.
- */  
+ */
+
 #include <msp430.h>
 #include <libTimer.h>
 #include <lcdutils.h>
@@ -14,47 +15,60 @@
 #include <shape.h>
 #include <abCircle.h>
 #include <chordVec.h>
+#include <buzzer.h>
 
 #define GREEN_LED BIT6
-static unsigned int points = 0;
-char snum[5];
-static unsigned int count = 0;
 
+static unsigned int points = 0; //keeps track of points scored
+char snum[5];
+static unsigned int count = 0; //increments to change title
+static unsigned int soundLength = 0;
+static unsigned int noiseSwitch = 0; //switches the buzzer noise
+static unsigned int lives = 9;
+static unsigned int volume = 1;
+/* creates circle with missing piece, similar to a copyrighted character */
 int
 abSlicedCircleCheck(const AbCircle *circle, const Vec2 *centerPos, const Vec2 *pixel)
-  {
-  u_char radius = circle->radius;
-  int axis;
+{
+  
   Vec2 relPos;
-  vec2Sub(&relPos, pixel, centerPos);
-  if(relPos.axes[0] >= 0 && relPos.axes[0]/2 <= relPos.axes[1])
+  vec2Sub(&relPos, pixel, centerPos); /* vector from center to pixel */
+  if(relPos.axes[0] >= 0 && relPos.axes[0] <= relPos.axes[1]){
     return 0;
+  }
   else
     return abCircleCheck(circle, centerPos, pixel);
 }
-AbCircle circleC = {abCircleGetBounds, abSlicedCircleCheck, chordVec20, 20};
-AbCircle circleBad = {abCircleGetBounds, abSlicedCircleCheck, chordVec10,10};
-AbRect pongRect = {abRectGetBounds, abRectCheck, {15,2}}; /**< 10x10 rectangle 
-*/
-//AbRect rect20 = {abRectGetBounds, abRectCheck, {20,20}};
-AbRArrow rightArrow = {abRArrowGetBounds, abRArrowCheck, 30};
+
+/* define the playing shapes */
+AbRect floorBoundary = {abRectGetBounds, abRectCheck, {(58), 1}};
+AbCircle circleBad = {abCircleGetBounds, abSlicedCircleCheck, chordVec10, 10};
+AbCircle circleRed = {abCircleGetBounds, abSlicedCircleCheck, chordVec10, 10};
+AbRect pongRect = {abRectGetBounds, abRectCheck, {15,2}}; /**< 15x2 rectangle*/
 
 AbRectOutline fieldOutline = {	/* playing field */
   abRectOutlineGetBounds, abRectOutlineCheck,   
-  {(screenWidth/2)-6, (screenHeight/2)-10}
+  {(screenWidth/2)-6, (screenHeight/2)}
+};
+Layer floorLayer = {
+  (AbShape *)&floorBoundary,
+  {screenWidth/2, (screenHeight-10)},
+  {0,0}, {0,0},
+  COLOR_RED,
+  0
 };
 
 Layer paddleLayer = {
   (AbShape *)&pongRect,
-  {(screenWidth/2), (screenHeight-14)}, /**< bit below & right of center */
+  {(screenWidth/2), (screenHeight-20)}, /**< bit below & right of center */
   {0,0}, {0,0},				    /* last & next pos */
   COLOR_WHITE,
-  0
+  &floorLayer,
 };
   
 
 Layer layer3 = {		/**< Layer with an orange circle */
-  (AbShape *)&circleBad,
+  (AbShape *)&circleRed,
   {(screenWidth/2)+10, (screenHeight/2)+5}, /**< bit below & right of center */
   {0,0}, {0,0},				    /* last & next pos */
   COLOR_RED,
@@ -63,13 +77,13 @@ Layer layer3 = {		/**< Layer with an orange circle */
 
 Layer fieldLayer = {		/* playing field as a layer */
   (AbShape *) &fieldOutline,
-  {screenWidth/2, screenHeight/2},/**< center */
+  {screenWidth/2, screenHeight/2+10},/**< center */
   {0,0}, {0,0},				    /* last & next pos */
   COLOR_BLUE,
   &layer3
 };
 
-Layer layer1 = {		/**< Layer with a red square */
+Layer layer1 = {		/**< Default (white)Ball Layer */
   (AbShape *)&circle5,
   {(screenWidth/2), (screenHeight/2)-14}, /**< center */
   {0,0}, {0,0},				    /* last & next pos */
@@ -78,7 +92,7 @@ Layer layer1 = {		/**< Layer with a red square */
 };
 
 Layer layer0 = {		/*< Layer with an orange circle */
-  (AbShape *)&circleC,
+  (AbShape *)&circleBad,
   {(screenWidth/2)+10, (screenHeight/2)+5}, /*< bit below & right of center */
   {0,0}, {0,0},				    /* last & next pos */
   COLOR_YELLOW,
@@ -87,8 +101,8 @@ Layer layer0 = {		/*< Layer with an orange circle */
 
 /** Moving Layer
  *  Linked list of layer references
- *  Velocity represents one iteration of change (direction & magnitude)
- */
+ *  Velocity represents one iteration of change (direction & magnitude) */
+
 typedef struct MovLayer_s {
   Layer *layer;
   Vec2 velocity;
@@ -97,11 +111,11 @@ typedef struct MovLayer_s {
 
 /* initial value of {0,0} will be overwritten */
 //MovLayer ml3 = { &layer4, {4,0}, 0}; /**< not all layers move */
-//MovLayer ml2 = { &layer1, {3,3}, &ml3};
+MovLayer ml4 = { &floorLayer, {0,0}, 0};
 MovLayer ml3 = { &paddleLayer, {4,0}, 0};
 MovLayer ml2 = { &layer1, {3,3}, 0};
-MovLayer ml1 = { &layer0, {1,2}, &ml2 }; 
-MovLayer ml0 = { &layer3, {2,1}, &ml1 }; 
+MovLayer ml1 = { &layer0, {2,3}, &ml2 }; 
+MovLayer ml0 = { &layer3, {3,2}, &ml1 }; 
 
 void movLayerDraw(MovLayer *movLayers, Layer *layers)
 {
@@ -158,16 +172,33 @@ void mlAdvance(MovLayer *ml, Region *fence)
     vec2Add(&newPos, &ml->layer->posNext, &ml->velocity);
     abShapeGetBounds(ml->layer->abShape, &newPos, &shapeBoundary);
     for (axis = 0; axis < 2; axis ++) {
+      fieldLayer.pos.axes[1] +=50;
       if ((shapeBoundary.topLeft.axes[axis] < fence->topLeft.axes[axis]) ||
 	  (shapeBoundary.botRight.axes[axis] > fence->botRight.axes[axis])) {
-	points++;
+	//fieldLayer.pos.axes[1] -= 50;
 	int velocity = ml->velocity.axes[axis] = -ml->velocity.axes[axis];
 	newPos.axes[axis] += (velocity);
-      }	/**< if outside of fence */
+      }
+      if(abRectCheck(&floorBoundary, &(floorLayer.pos),
+		     &(ml->layer->pos)) && axis ==1){
+	int velocity = -100;
+	lives--;
+	newPos.axes[axis] += (velocity);
+      }
+      /**< if outside of fence */
+      if(abRectCheck(&pongRect,&(paddleLayer.pos),
+		       &(ml->layer->pos)) && axis==1){ 
+	points++;
+        int velocity = ml->velocity.axes[axis] = -ml->velocity.axes[axis];
+        newPos.axes[axis] += (4*velocity);
+      }
+      fieldLayer.pos.axes[1] -= 50;
     } /**< for axis */
     ml->layer->posNext = newPos;
   } /**< for ml */
 }
+
+/* advances the paddle left and right depending on cursor parameter */
 void paddleAdvance(MovLayer *ml, Region *fence, int cursor)
 {
   Vec2 newPos;
@@ -177,6 +208,7 @@ void paddleAdvance(MovLayer *ml, Region *fence, int cursor)
     vec2Add(&newPos, &ml->layer->posNext, &ml->velocity);
     abShapeGetBounds(ml->layer->abShape, &newPos, &shapeBoundary);
     for (axis = 0; axis < 2; axis ++) {
+      /*keeps paddle in boundary*/
       if ((shapeBoundary.topLeft.axes[0] < fence->topLeft.axes[0])){
 	int velocity = 10;
 	  newPos.axes[0] += (velocity);
@@ -185,8 +217,9 @@ void paddleAdvance(MovLayer *ml, Region *fence, int cursor)
 	int velocity = -10;
 	newPos.axes[0] += (velocity);
       }
+      /*Move paddle*/
       if(cursor == 0){
-	int velocity = -5;//ml->velocity.axes[axis] = -ml->velocity.axes[axis];
+	int velocity = -5;//ml->velocity.axes[axis] = -ml->velocity.axes[axis]
 	newPos.axes[0] += (velocity);
       }
       if(cursor == 1){
@@ -197,6 +230,71 @@ void paddleAdvance(MovLayer *ml, Region *fence, int cursor)
     } /**< for axis */
    ml->layer->posNext = newPos;
   } /**< for ml */
+}
+
+void paddleMove(Region *fence){
+  u_int switches = p2sw_read(), i;
+  char str[5];
+  for(i = 0; i < 4; i++){
+    str[i] = (switches & (1<<i)) ? '-' : '0'+i;
+  }
+  str[4] = 0;
+  //char* pnum = itoa(p2sw_read(),snum,10);
+  //drawString5x7(screenWidth/2,screenHeight/2, pnum , COLOR_GREEN, COLOR_BLACK); //score implem.
+  drawString5x7(0,screenHeight-8,str,COLOR_BLUE,COLOR_BLACK);
+  if((p2sw_read() == 14) && (volume <= 10)){ //switch 1 decreases noise
+    
+    volume++;
+  }
+  if((p2sw_read() == 75) && (volume >= 1)){ //switch 4 increases noise
+    volume--;
+  }
+  if(p2sw_read() == 11){ //switch 2 moves paddle to left
+    paddleAdvance(&ml3, fence,1);
+    movLayerDraw(&ml3, &paddleLayer);
+    buzzer_noise1(volume);
+    noiseSwitch = 1;
+  }
+  if(p2sw_read() == 13){ //switch 3 moves paddle to right
+    buzzer_noise2();
+    paddleAdvance(&ml3,fence,0);
+    movLayerDraw(&ml3, &paddleLayer);
+    buzzer_noise2(volume);
+    noiseSwitch = 1;
+  }
+  if(noiseSwitch > 1){ //just made to shut up the buzzer
+    buzzer_noiseNull();
+    noiseSwitch = 0;
+  }
+  if(volume == 11){
+    volume = 1;
+  }
+  noiseSwitch++;
+}
+
+void titleDraw(){ /*title "Feed Reddy Freddy" alternates on top right */
+  
+    if(count < 4){
+      //drawString5x7((screenHeight/2)-4,0, "      ", COLOR_BLACK, COLOR_BLACK);
+      drawString5x7((screenHeight/2)-4, 0, "PONG", COLOR_YELLOW, COLOR_BLACK);
+      count++;
+    }
+    if(count >= 4 && count < 10){
+      drawString5x7((screenHeight/2)-4,0, "PONG", COLOR_RED, COLOR_BLACK);
+      count ++;
+    }
+    if(count == 10){
+      count = 0;
+    }
+    
+    char* pnum = itoa(points,snum,10);
+    drawString5x7(0,0, "Score:", COLOR_GREEN, COLOR_BLACK); //score implem.
+    drawString5x7((screenHeight/4),0, pnum,
+    		  COLOR_GREEN, COLOR_BLACK);
+    pnum = itoa(lives, snum, 10);
+    /* prints number of lives left */
+    drawString5x7(50, (screenHeight-8), "Lives: ", COLOR_WHITE, COLOR_BLACK);
+    drawString5x7(90,(screenHeight-8),pnum, COLOR_RED, COLOR_BLACK);
 }
 
 u_int bgColor = COLOR_BLACK;     /**< The background color */
@@ -218,7 +316,7 @@ void main()
   shapeInit();
   p2sw_init(15);
   shapeInit();
-
+  buzzer_init();
   layerInit(&layer0);
   layerDraw(&layer0);
 
@@ -228,41 +326,10 @@ void main()
   enableWDTInterrupts();      /**< enable periodic interrupt */
   or_sr(0x8);	              /**< GIE (enable interrupts) */
 
-  //drawString5x7((screenHeight/2)-10,0,"Feed", COLOR_YELLOW, COLOR_BLACK);
-  //drawString5x7((screenHeight/2)-5,0, "REDDY", COLOR_RED, COLOR_BLACK);
   for(;;){
-    if(count < 30){
-      drawString5x7((screenHeight/2)-4,0, "      ", COLOR_BLACK, COLOR_BLACK);
-      drawString5x7((screenHeight/2)-10,0,"FEED", COLOR_YELLOW, COLOR_BLACK);
-      count++;
-    }
-    if(count >= 30 && count < 50){
-      drawString5x7((screenHeight/2)-4,0, "REDDY", COLOR_RED, COLOR_BLACK);
-      count ++;
-    }
-    if(count == 50){
-      count = 0;
-    }
-    char* pnum = itoa(points,snum,10);
-    drawString5x7(0,0, "Score:", COLOR_GREEN, COLOR_BLACK); //score implem.
-    drawString5x7((screenHeight/4),0, pnum,
-    		  COLOR_GREEN, COLOR_BLACK);
-  u_int switches = p2sw_read(), i;
-  char str[5];
-  for(i = 0; i < 4; i++){
-    str[i] = (switches & (1<<i)) ? '-' : '0'+i;
-  }
-  str[4] = 0;
-  drawString5x7(0,screenHeight-8,str,COLOR_BLUE,COLOR_BLACK);
-  if(p2sw_read() == 11){
-    paddleAdvance(&ml3, &fieldFence,1);
-    movLayerDraw(&ml3, &paddleLayer);
-  }
-  if(p2sw_read() == 13){
-    paddleAdvance(&ml3, &fieldFence,0);
-    movLayerDraw(&ml3, &paddleLayer);
-  }
-  
+    titleDraw();
+    paddleMove(&fieldFence);
+
   //for(;;) { 
     while (!redrawScreen) { /**< Pause CPU if screen doesn't need updating */
     		  
@@ -272,15 +339,6 @@ void main()
     P1OUT |= GREEN_LED;       /**< Green led on when CPU on */
     redrawScreen = 0;
     movLayerDraw(&ml0, &layer0);
-    /*
-    if(count == 1){
-      mlAdvance(&ml3, &fieldFence);
-      movLayerDraw(&ml3, &layer4);
-      count = 0;
-    }
-    count++;
-    //movLayerDraw(&ml3, 0);
-    */
   }
 }
 

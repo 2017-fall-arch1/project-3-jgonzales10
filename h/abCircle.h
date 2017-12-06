@@ -12,6 +12,7 @@
 typedef struct AbCircle_s {
   void (*getBounds)(const struct AbCircle_s *circle, const Vec2 *centerPos, Region *bounds);
   int (*check)(const struct AbCircle_s *circle, const Vec2 *centerPos, const Vec2 *pixel);
+  const int mouthSize;
   const u_char *chords;
   const u_char radius;
 } AbCircle;
